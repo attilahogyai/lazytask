@@ -7,8 +7,7 @@ from pathlib import Path
 class RedmineConfig:
     base_url: str
     project_identifier: str
-    username: str
-    password: str
+    api_key: str
 
 
 @dataclass(frozen=True)
@@ -26,7 +25,6 @@ def load_config(path: Path) -> AppConfig:
         redmine=RedmineConfig(
             base_url=r["base_url"].rstrip("/"),
             project_identifier=r["project_identifier"],
-            username=r["username"],
-            password=r["password"],
+            api_key=r["api_key"],
         ),
     )

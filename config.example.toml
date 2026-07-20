@@ -4,5 +4,4 @@ backend = "redmine"
 [redmine]
 base_url = "https://support.swicon.com"
 project_identifier = "brickz"
-username = "your-username"
-password = "your-password"
+api_key = "your-api-key"
