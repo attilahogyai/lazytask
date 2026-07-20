@@ -39,11 +39,13 @@ class EditEntryScreen(ModalScreen[bool]):
         entry: TimeEntry | None,
         datasource: DataSource,
         default_issue_id: int | None = None,
+        default_spent_on: date | None = None,
     ):
         super().__init__()
         self._entry = entry
         self._datasource = datasource
         self._default_issue_id = default_issue_id
+        self._default_spent_on = default_spent_on
 
     def compose(self):
         e = self._entry
@@ -55,7 +57,7 @@ class EditEntryScreen(ModalScreen[bool]):
             project_value = projects[0].id
             default_activity = next((a for a in activities if a.is_default), activities[0])
             activity_value = default_activity.id
-            spent_on_value = date.today().isoformat()
+            spent_on_value = (self._default_spent_on or date.today()).isoformat()
             hours_value = ""
             issue_value = str(self._default_issue_id) if self._default_issue_id else ""
             comments_value = ""

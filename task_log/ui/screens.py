@@ -1,13 +1,19 @@
 from datetime import date
+from pathlib import Path
 
+from textual import events
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import ContentSwitcher, DataTable, Footer, Header, Select
 
 from task_log.datasource import DataSource
+from task_log.day_flags import VACATION, DayFlagStore
 from task_log.models import TimeEntry
 from task_log.ui.calendar_view import MonthCalendar
 from task_log.ui.edit_screen import EditEntryScreen
+
+
+_FLAG_KEYS = {"v": VACATION}
 
 
 class TimeEntriesScreen(Screen):
@@ -37,13 +43,16 @@ class TimeEntriesScreen(Screen):
         ("p", "prev_month", "Prev month"),
         ("n", "next_month", "Next month"),
         ("t", "this_month", "This month"),
+        ("f", "flag_day", "Flag day"),
     ]
 
-    def __init__(self, datasource: DataSource):
+    def __init__(self, datasource: DataSource, flag_store: DayFlagStore | None = None):
         super().__init__()
         self._datasource = datasource
         self._entries = []
         self._filtered_entries = []
+        self._flag_store = flag_store or DayFlagStore(Path("day_flags.json"))
+        self._flag_pending = False
 
     def compose(self):
         yield Header()
@@ -62,6 +71,7 @@ class TimeEntriesScreen(Screen):
         table.add_columns("Date", "User", "Activity", "Issue", "Comment", "Hours")
         day_table = self.query_one("#day-entries", DataTable)
         day_table.add_columns("User", "Activity", "Issue", "Comment", "Hours")
+        self.query_one(MonthCalendar).set_flags(self._flag_store.all_flags())
         self._load_entries()
 
     @property
@@ -72,7 +82,7 @@ class TimeEntriesScreen(Screen):
             return False
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action in ("prev_month", "next_month", "this_month") and not self._in_calendar:
+        if action in ("prev_month", "next_month", "this_month", "flag_day") and not self._in_calendar:
             return False
         return True
 
@@ -100,6 +110,27 @@ class TimeEntriesScreen(Screen):
 
     def action_this_month(self) -> None:
         self.query_one(MonthCalendar).goto_today()
+
+    def action_flag_day(self) -> None:
+        self._flag_pending = True
+        self.notify("Flag: press v for vacation")
+
+    def on_key(self, event: events.Key) -> None:
+        if not self._flag_pending:
+            return
+        self._flag_pending = False
+        flag = _FLAG_KEYS.get(event.key)
+        if flag is None:
+            return
+        event.stop()
+        calendar = self.query_one(MonthCalendar)
+        day = calendar.date_at(calendar.cursor_coordinate)
+        if day is None:
+            return
+        flags = self._flag_store.toggle(day, flag)
+        calendar.set_flags(self._flag_store.all_flags())
+        verb = "added to" if flag in flags else "removed from"
+        self.notify(f"{flag.capitalize()} flag {verb} {day.isoformat()}")
 
     def action_refresh_entries(self) -> None:
         self._load_entries()
@@ -131,8 +162,17 @@ class TimeEntriesScreen(Screen):
     def action_add_entry(self) -> None:
         issue_select = self.query_one("#issue-filter", Select)
         default_issue_id = None if issue_select.value is Select.BLANK else issue_select.value
+        default_spent_on = None
+        if self._in_calendar:
+            calendar = self.query_one(MonthCalendar)
+            default_spent_on = calendar.date_at(calendar.cursor_coordinate)
         self.app.push_screen(
-            EditEntryScreen(None, self._datasource, default_issue_id=default_issue_id),
+            EditEntryScreen(
+                None,
+                self._datasource,
+                default_issue_id=default_issue_id,
+                default_spent_on=default_spent_on,
+            ),
             callback=self._on_edit_result,
         )
 

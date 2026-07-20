@@ -8,6 +8,18 @@ Terminal viewer for registered time entries, sourced from Redmine, built with Te
 uv run python main.py
 ```
 
+## Tests
+
+```
+uv run pytest
+```
+
+`tests/` drives real `TimeEntriesScreen`/`EditEntryScreen` UI via Textual's
+`App.run_test()` Pilot (real keypresses, real widget state) against a
+`FakeDataSource` (`tests/fakes.py`, in-memory `DataSource` implementation) —
+no network calls, no `config.toml` needed. Add new UI-behavior regression
+tests the same way rather than unit-testing internals directly.
+
 Reads `./config.toml` (cwd-relative, hardcoded in `main.py`). Real credentials live only in `config.toml`, which is gitignored — `config.example.toml` is the checked-in template.
 
 ## Architecture
@@ -32,6 +44,15 @@ task_log/
 │                   RedmineConfig is (base_url, project_identifier, api_key).
 ├── factory.py      build_datasource(cfg) -> DataSource; one if/elif on cfg.backend.
 │                   Adding a second backend = new class + one elif line, nothing else.
+├── day_flags.py    DayFlagStore: local, backend-independent per-day flags (vacation, etc.) —
+│                   these are NOT a Redmine concept and never touch DataSource/RedmineClient.
+│                   Persisted as JSON (day.isoformat() -> [flag, ...]) at a path passed to the
+│                   constructor; loaded eagerly, saved on every toggle(). Real usage defaults
+│                   to ./day_flags.json (gitignored, cwd-relative like config.toml — see
+│                   TimeEntriesScreen.__init__ in screens.py). FLAG_STYLES maps a flag name to
+│                   a Rich style string used as the calendar cell's background (currently just
+│                   VACATION -> "on dark_green"); add a new flag kind by adding one entry here
+│                   plus one entry in screens.py's _FLAG_KEYS.
 ├── redmine/
 │   └── client.py   RedmineClient: pure REST JSON API access via an API key (see below)
 └── ui/
@@ -51,7 +72,18 @@ task_log/
     │                     (pre-filling its issue field from the active issue filter, if any —
     │                     see edit_screen.py), and (calendar view only, hidden from footer
     │                     otherwise via check_action) "p"/"n" prev/next month, "t" jump to
-    │                     today. No pagination — DataTable scrolls locally.
+    │                     today, "f" arms flag mode on the cursor-highlighted day. No
+    │                     pagination — DataTable scrolls locally.
+    │                     Flag mode ("f" then a second key, calendar view only): action_flag_day
+    │                     sets self._flag_pending=True and notifies; the screen's own on_key
+    │                     override intercepts the *next* key event and calls event.stop() before
+    │                     it can bubble to App and trigger a normal binding (this is why plain
+    │                     "v" still toggles list/calendar — on_key only swallows a key while
+    │                     _flag_pending is True, and always resets it first). "v" maps to
+    │                     VACATION via _FLAG_KEYS; DayFlagStore.toggle() flips it and the result
+    │                     is pushed to MonthCalendar.set_flags() to re-render. Any key other
+    │                     than one in _FLAG_KEYS just cancels flag mode (falls through
+    │                     unstopped, so e.g. "f" then "r" still refreshes).
     ├── edit_screen.py    EditEntryScreen(ModalScreen[bool]): form with project/activity Select
     │                     dropdowns and date/hours/issue/comments Input fields. Doubles as both
     │                     the edit and add-new form: constructed with an existing TimeEntry to
@@ -69,7 +101,14 @@ task_log/
                           total hours + entry count ("8.5h · 2"). Posts DaySelected(day) as the
                           cursor moves; rebuilds keep the cursor on the previously selected day
                           when visible, else on today. Rebuilt from the full entry list on
-                          set_entries()/month change — no extra fetches.
+                          set_entries()/month change — no extra fetches. set_flags(dict[date,
+                          frozenset[str]]) stores flags from DayFlagStore and rebuilds; a
+                          flagged day's cell Text is built with its FLAG_STYLES background set
+                          as the Text's base `style` (Rich composes this under the day-number/
+                          hours spans' own foreground styles — see day_flags.py), then both
+                          lines are manually padded to the column's inner content width so the
+                          background fills the whole cell rather than just the glyphs
+                          (DataTable/Rich don't auto-pad a short Text to its column width).
 ```
 
 UI code never imports `requests` or `RedmineClient` — only `DataSource`/`TimeEntry`.

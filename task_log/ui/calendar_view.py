@@ -6,9 +6,12 @@ from rich.text import Text
 from textual.message import Message
 from textual.widgets import DataTable
 
+from task_log.day_flags import FLAG_STYLES
 from task_log.models import TimeEntry
 
 _WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_DAY_COLUMN_WIDTH = 12
+_DAY_CONTENT_WIDTH = _DAY_COLUMN_WIDTH - 2  # minus DataTable's default 1-cell padding per side
 
 
 class MonthCalendar(DataTable):
@@ -36,9 +39,14 @@ class MonthCalendar(DataTable):
         self._month = today.month
         self._entries: list[TimeEntry] = []
         self._weeks: list[list[date]] = []
+        self._flags: dict[date, frozenset[str]] = {}
 
     def set_entries(self, entries: list[TimeEntry]) -> None:
         self._entries = entries
+        self._rebuild()
+
+    def set_flags(self, flags: dict[date, frozenset[str]]) -> None:
+        self._flags = flags
         self._rebuild()
 
     def move_month(self, delta: int) -> None:
@@ -84,15 +92,30 @@ class MonthCalendar(DataTable):
             cells = []
             for day in week:
                 outside = day.month != self._month
-                text = Text()
+                flag_style = next(
+                    (style for flag, style in FLAG_STYLES.items() if flag in self._flags.get(day, ())),
+                    None,
+                )
+                text = Text(style=flag_style or "")
                 if day == today:
                     day_style = "bold reverse"
                 else:
                     day_style = "dim" if outside else "bold"
-                text.append(f"{day.day:>2}", style=day_style)
+                header = f"{day.day:>2}"
+                header_pad = " " * (_DAY_CONTENT_WIDTH - len(header)) if flag_style else ""
+                text.append(header + header_pad, style=day_style)
                 if day in hours:
-                    text.append(f"\n{hours[day]:g}h", style="dim" if outside else "green")
-                    text.append(f" · {counts[day]}", style="dim")
+                    hours_part = f"{hours[day]:g}h"
+                    count_part = f" · {counts[day]}"
+                    count_pad = (
+                        " " * max(_DAY_CONTENT_WIDTH - len(hours_part) - len(count_part), 0)
+                        if flag_style
+                        else ""
+                    )
+                    text.append(f"\n{hours_part}", style="dim" if outside else "green")
+                    text.append(count_part + count_pad, style="dim")
+                elif flag_style:
+                    text.append("\n" + " " * _DAY_CONTENT_WIDTH, style="dim")
                 cells.append(text)
             self.add_row(*cells, height=2)
 
