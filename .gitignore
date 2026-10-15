@@ -14,3 +14,9 @@ config.toml
 
 # Local per-day flags (vacation, etc.)
 day_flags.json
+
+# Local todo tree
+todos.json
+
+# Local task time entries
+task_entries.json

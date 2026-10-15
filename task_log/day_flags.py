@@ -10,9 +10,11 @@ from datetime import date
 from pathlib import Path
 
 VACATION = "vacation"
+ILLNESS = "illness"
 
 FLAG_STYLES: dict[str, str] = {
     VACATION: "on dark_green",
+    ILLNESS: "on dark_red",
 }
 
 

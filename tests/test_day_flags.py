@@ -8,9 +8,9 @@ in particular plain "v" must keep toggling list/calendar view.
 
 from textual.app import App
 
-from task_log.day_flags import VACATION, DayFlagStore
+from task_log.day_flags import ILLNESS, VACATION, DayFlagStore
 from task_log.ui.calendar_view import MonthCalendar
-from task_log.ui.screens import TimeEntriesScreen
+from task_log.ui.time_entries_pane import TimeEntriesScreen
 
 from tests.fakes import FakeDataSource
 
@@ -69,6 +69,48 @@ async def test_f_then_v_again_removes_vacation_flag(tmp_path):
         assert VACATION not in store.flags_for(day)
 
 
+async def test_f_then_i_adds_illness_flag_to_selected_day(tmp_path):
+    store = DayFlagStore(tmp_path / "day_flags.json")
+    app = HarnessApp(FakeDataSource(), store)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("v")  # switch to calendar view
+        await pilot.pause()
+
+        calendar = app.query_one(MonthCalendar)
+        day = calendar.date_at(calendar.cursor_coordinate)
+        assert day is not None
+
+        await pilot.press("f")
+        await pilot.press("i")
+        await pilot.pause()
+
+        assert ILLNESS in store.flags_for(day)
+        assert ILLNESS in calendar._flags.get(day, ())
+
+
+async def test_f_then_i_again_removes_illness_flag(tmp_path):
+    store = DayFlagStore(tmp_path / "day_flags.json")
+    app = HarnessApp(FakeDataSource(), store)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("v")
+        await pilot.pause()
+
+        calendar = app.query_one(MonthCalendar)
+        day = calendar.date_at(calendar.cursor_coordinate)
+
+        await pilot.press("f")
+        await pilot.press("i")
+        await pilot.pause()
+        assert ILLNESS in store.flags_for(day)
+
+        await pilot.press("f")
+        await pilot.press("i")
+        await pilot.pause()
+        assert ILLNESS not in store.flags_for(day)
+
+
 async def test_plain_v_without_f_still_toggles_view(tmp_path):
     store = DayFlagStore(tmp_path / "day_flags.json")
     app = HarnessApp(FakeDataSource(), store)
@@ -97,7 +139,7 @@ async def test_f_then_unrelated_key_cancels_flag_mode_without_flagging(tmp_path)
         day = calendar.date_at(calendar.cursor_coordinate)
 
         await pilot.press("f")
-        await pilot.press("r")  # unrelated key: cancels flag mode, still refreshes
+        await pilot.press("f5")  # unrelated key: cancels flag mode, still refreshes
         await pilot.pause()
 
         assert VACATION not in store.flags_for(day)

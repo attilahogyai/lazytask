@@ -1,5 +1,15 @@
 [general]
 backend = "redmine"
+# Root directory the Todos tab's file-attachment picker browses/filters from.
+# Optional — defaults to the directory task-log is run from if omitted.
+# attachments_root = "/home/user/Documents"
+
+# Your own Redmine user id/name. Optional — shown as the owner ("User" column)
+# on local task entries (task_log/task_entries.py), since those are never sent
+# to Redmine and so have no real user of their own. Left blank/omitted, task
+# rows just show an empty User column.
+# user_id = "your-redmine-login"
+# user_name = "Your Display Name"
 
 [redmine]
 base_url = "https://support.swicon.com"

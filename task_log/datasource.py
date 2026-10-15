@@ -13,6 +13,8 @@ class DataSource(Protocol):
 
     def current_user_id(self) -> int: ...
 
+    def issue_project_id(self, issue_id: int) -> int: ...
+
     def update_time_entry(
         self,
         entry_id: int,
@@ -34,4 +36,8 @@ class DataSource(Protocol):
         issue_id: int | None,
         activity_id: int,
         comments: str,
-    ) -> None: ...
+    ) -> int:
+        """Returns the new entry's id."""
+        ...
+
+    def delete_time_entry(self, entry_id: int) -> None: ...

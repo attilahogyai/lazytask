@@ -12,6 +12,7 @@ from task_log.models import TimeEntry
 _WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 _DAY_COLUMN_WIDTH = 12
 _DAY_CONTENT_WIDTH = _DAY_COLUMN_WIDTH - 2  # minus DataTable's default 1-cell padding per side
+_WEEK_SUM_COLUMN_WIDTH = 10
 
 
 class MonthCalendar(DataTable):
@@ -78,7 +79,8 @@ class MonthCalendar(DataTable):
         previous = select or (self.date_at(self.cursor_coordinate) if self._weeks else None)
         self.clear(columns=True)
         for label in _WEEKDAYS:
-            self.add_column(label, width=12)
+            self.add_column(label, width=_DAY_COLUMN_WIDTH)
+        self.add_column("Week", width=_WEEK_SUM_COLUMN_WIDTH)
 
         hours: defaultdict[date, float] = defaultdict(float)
         counts: defaultdict[date, int] = defaultdict(int)
@@ -117,9 +119,22 @@ class MonthCalendar(DataTable):
                 elif flag_style:
                     text.append("\n" + " " * _DAY_CONTENT_WIDTH, style="dim")
                 cells.append(text)
+
+            week_total = sum(hours.get(day, 0.0) for day in week)
+            week_text = Text(f"{week_total:g}h" if week_total else "", style="bold")
+            cells.append(week_text)
+
             self.add_row(*cells, height=2)
 
-        self.border_title = f"{calendar.month_name[self._month]} {self._year}"
+        month_hours = sum(
+            h for day, h in hours.items() if day.year == self._year and day.month == self._month
+        )
+        month_days = sum(
+            1 for day in hours if day.year == self._year and day.month == self._month
+        )
+        self.border_title = (
+            f"{calendar.month_name[self._month]} {self._year} — {month_hours:g}h — {month_days}d"
+        )
 
         # keep the cursor on the previously selected day if it is still visible,
         # otherwise land on today when showing the current month

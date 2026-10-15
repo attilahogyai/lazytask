@@ -28,6 +28,7 @@ class RedmineClient:
         self._activities_cache: list[Activity] | None = None
         self._projects_cache: list[Project] | None = None
         self._current_user_id: int | None = None
+        self._issue_project_cache: dict[int, int] = {}
 
     def list_time_entries(self) -> list[TimeEntry]:
         url = f"{self._cfg.base_url}/projects/{self._cfg.project_identifier}/time_entries.json"
@@ -102,6 +103,17 @@ class RedmineClient:
             self._current_user_id = resp.json()["user"]["id"]
         return self._current_user_id
 
+    def issue_project_id(self, issue_id: int) -> int:
+        if issue_id not in self._issue_project_cache:
+            url = f"{self._cfg.base_url}/issues/{issue_id}.json"
+            resp = self._session.get(url, timeout=10)
+            self._raise_for_auth(resp)
+            if resp.status_code == 404:
+                raise RedmineUpdateError(f"Issue #{issue_id} not found (or not visible to you)")
+            resp.raise_for_status()
+            self._issue_project_cache[issue_id] = resp.json()["issue"]["project"]["id"]
+        return self._issue_project_cache[issue_id]
+
     def update_time_entry(
         self,
         entry_id: int,
@@ -138,7 +150,7 @@ class RedmineClient:
         issue_id: int | None,
         activity_id: int,
         comments: str,
-    ) -> None:
+    ) -> int:
         url = f"{self._cfg.base_url}/time_entries.json"
         body = {
             "time_entry": {
@@ -151,6 +163,15 @@ class RedmineClient:
             }
         }
         resp = self._session.post(url, json=body, timeout=10)
+        self._raise_for_write_errors(resp)
+        # 201 Created, body echoes the new entry back.
+        return resp.json()["time_entry"]["id"]
+
+    def delete_time_entry(self, entry_id: int) -> None:
+        url = f"{self._cfg.base_url}/time_entries/{entry_id}.json"
+        resp = self._session.delete(url, timeout=10)
+        if resp.status_code == 404:
+            return  # already gone — the goal state either way
         self._raise_for_write_errors(resp)
 
     @staticmethod

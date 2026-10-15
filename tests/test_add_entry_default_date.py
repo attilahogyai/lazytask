@@ -12,7 +12,7 @@ from textual.widgets import Input
 
 from task_log.ui.calendar_view import MonthCalendar
 from task_log.ui.edit_screen import EditEntryScreen
-from task_log.ui.screens import TimeEntriesScreen
+from task_log.ui.time_entries_pane import TimeEntriesScreen
 
 from tests.fakes import FakeDataSource
 
